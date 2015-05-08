@@ -1,0 +1,136 @@
+#!/usr/bin/env ruby
+require 'gli'
+require 'elasticsearch'
+require 'es-cli'
+require 'awesome_print'
+
+
+include GLI::App
+
+program_desc 'Elasticsearch CLI'
+
+version EsCli::VERSION
+
+subcommand_option_handling :normal
+arguments :strict
+
+desc 'Prints the current active profile in YAML format'
+switch [:pp, :printprofile]
+
+desc 'Describe some flag here'
+default_value 'default'
+arg_name 'The profile to run'
+flag [:p, :profile]
+
+desc 'Runs subcommands, `help cluster` for a list of cluster subcommands'
+command [:cluster, :c] do |c|
+  #c.desc 'Describe a switch to cluster'
+  #c.switch :s
+
+  #c.desc 'Describe a flag to cluster'
+  #c.default_value 'default'
+  #c.flag :f
+  # c.action do |global_options, options, args|
+  #
+  #   # Your command logic here
+  #
+  #   # If you have any errors, just raise them
+  #   # raise "that command made no sense"
+  #   client = Elasticsearch::Client.new( { :host => from_current_profile(global_options, :es_url) } )
+  #   puts client.cluster
+  # end
+  c.arg 'profile', :optional
+  c.desc 'Print the cluster health'
+  c.command [:health, :h] do |all|
+    all.action do |globals, options, args|
+      ap globals[:client].cluster.health
+    end
+  end
+
+end
+
+desc 'Runs subcommands, `help nodes` for a list of cluster subcommands'
+command [:nodes, :n] do |c|
+
+
+  #desc 'Describe some flag here'
+  #default_value 'the default'
+  #arg_name 'The name of the argument'
+  #flag [:f, :flagname]
+
+  c.command [:stats, :s] do |all|
+
+    all.flag [:m,:metric], :default_value => '_all',
+           :arg_name => 'metric',
+           :desc => '_all, breaker, fs, http, indices, jvm, network, os, process, thread_pool, transport'
+    all.desc 'Print the node stats'
+    all.action do |globals, options, args|
+      ap globals[:client].nodes.stats(:metric => options[:metric])
+    end
+  end
+
+end
+
+CONFIG_FILE_NAME = '.es-cli.yml'
+
+# Load configuration options from `~/.es-cli.yml` if it exists
+def load_config(global)
+  config_file_path = File.join(Dir.home, CONFIG_FILE_NAME)
+
+  if File.exists?(config_file_path)
+    require 'yaml'
+    file_settings = YAML.load_file(config_file_path)
+    global[:config].merge!(file_settings)
+  end
+
+end
+
+def from_current_profile(global, property)
+  global[:config][global[:config][:profile]][:es_url]
+end
+
+pre do |globals, command, options, args|
+
+  # Set up the default configuation
+  globals[:config] = {:profile => :default, :default => {:es_url => 'http://localhost:9200'}}
+
+  # Load configuration file if it exists
+  load_config globals
+
+  # Use a profile if it is provided
+  if globals[:profile]
+    profile = globals[:profile].to_sym
+    raise "Could not find profile #{profile.to_s}, check your ~/.es-cli.yml settings" unless globals[:config][profile]
+    globals[:config][:profile] = profile
+  end
+
+  # Setup the ES client
+  globals[:client] = Elasticsearch::Client.new({:host => from_current_profile(globals, :es_url), :log => false})
+
+  if globals[:printprofile]
+    require 'yaml'
+    puts ({ globals[:config][:profile] => globals[:config][globals[:config][:profile]] }).to_yaml
+  end
+  # Pre logic here
+  # Return true to proceed; false to abort and not call the
+  # chosen command
+  # Use skips_pre before a command to skip this block
+  # on that command only
+  true
+end
+
+post do |global, command, options, args|
+
+  # Post logic here
+  # Use skips_post before a command to skip this
+  # block on that command only
+end
+
+on_error do |exception|
+
+  # Error logic here
+  # return false to skip default error handling
+  true
+end
+
+exit run(ARGV)

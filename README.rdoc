@@ -1,0 +1,14 @@
+= es-cli
+
+Describe your project here
+
+:include:es-cli.rdoc
+
+
+Example .es-cli.yml which goes in your home directory.
+  ---
+  # The default profile that will activate
+  :default:
+    :es_url: http://localhost:9200
+  :stage:
+    :es_url: http://localhost:9300

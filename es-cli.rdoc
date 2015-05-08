@@ -1,0 +1,5 @@
+= es-cli
+
+Generate this with
+    es-cli rdoc
+After you have described your command line interface
